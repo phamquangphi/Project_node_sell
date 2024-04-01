@@ -14,7 +14,7 @@ const userSchema = mongoose.Schema({
     require: true,
   },
   phone: {
-    type: Number,
+    type: Number,         
     require: true,
   },
   refreshToken: {

@@ -4,10 +4,10 @@ const verifyAccessToken = async (req, res, next) => {
   try {
     if (req?.headers?.authorization?.startsWith("Bearer")) {
       const token = await req.headers.authorization.split(" ")[1];
-      jwt.verify(token, process.env.JWT_SECREST, (err, decode) => {
+      jwt.verify(token, process.env.JWT_ACCESS_KEY, (err, decode) => {
         if (err)
           return res
-            .status(401)
+            .status(403)
             .send({ success: false, message: "Invalid access token" });
         req.user = decode;
         next();
@@ -18,7 +18,7 @@ const verifyAccessToken = async (req, res, next) => {
         .send({ success: false, message: "Require authorization!!!" });
     }
   } catch (error) {
-    res.status(400).send(error.message);
+    res.status(400).json("is not sever");
   }
 };
 module.exports = { verifyAccessToken };

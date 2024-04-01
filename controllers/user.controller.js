@@ -5,15 +5,7 @@ const {
   generateAccessToken,
   generateRefreshToken,
 } = require("../middleware/jwt");
-// CREATE TOKEN
-// const createToken = async (id) => {
-//   try {
-//     const token = await jwt.sign({ _id: id }, config.secret_jwt);
-//     return token;
-//   } catch (error) {
-//     res.status(400).send(error.message);
-//   }
-// };
+require("dotenv").config();
 // HASH PASSWORD
 const securePassword = async (pw) => {
   try {
@@ -38,6 +30,7 @@ const registerUser = async (req, res) => {
       await user.save();
       return res.status(200).send({ success: true, data: user });
     } else {
+      
       return res
         .status(401)
         .send({ success: false, message: "this email is already exists" });
@@ -57,8 +50,11 @@ const loginUser = async (req, res) => {
     if (useData) {
       const passwordMatch = await bcryptjs.compare(password, useData.password);
       if (passwordMatch) {
-        const tokenData = await generateAccessToken(useData._id);
-        const refreshToken = await generateRefreshToken(useData._id);
+        const tokenData = await generateAccessToken(useData._id, useData.roles);
+        const refreshToken = await generateRefreshToken(
+          useData._id,
+          useData.roles
+        );
         await User.findByIdAndUpdate(
           useData._id,
           { refreshToken },
@@ -73,7 +69,10 @@ const loginUser = async (req, res) => {
         };
         res.cookie("refreshToken", refreshToken, {
           httpOnly: true,
-          maxAge: 7 * 24 * 60 * 60 * 1000,
+          secure: false,
+          path: "/",
+          sameSite: "strict",
+          // maxAge: 7 * 24 * 60 * 60 * 1000,
         });
         return res.status(200).send({
           success: true,
@@ -97,38 +96,7 @@ const loginUser = async (req, res) => {
       .send({ success: false, message: "Internal server error" });
   }
 };
-//UPDATE PASSWORD
-const updatePasswordUser = async (req, res) => {
-  try {
-    const user_id = req.body.user_id;
-    const password = req.body.password;
-    const data = await User.findOne({ _id: user_id });
-    if (data) {
-      const newPassword = await securePassword(password);
-      const userData = await User.findByIdAndUpdate(
-        { _id: user_id },
-        {
-          $set: {
-            password: newPassword,
-          },
-        }
-      );
-      return res.status(200).send({
-        success: true,
-        massage: "Your password has been update",
-        data: userData,
-      });
-    } else {
-      return res
-        .status(401)
-        .send({ success: false, message: "User id not found!" });
-    }
-  } catch (error) {
-    return res
-      .status(400)
-      .send({ success: false, message: "Internal server error" });
-  }
-};
+
 // GET CURRENT
 const getcurrent = async (req, res) => {
   try {
@@ -144,40 +112,81 @@ const getcurrent = async (req, res) => {
   }
 };
 // REFRESH TOKEN
-const refreshAccessToken = async (req, res) => {
+const requestRefreshAccessToken = async (req, res) => {
   try {
     const cookie = req.cookies;
     if (!cookie && !cookie.refreshToken)
-      throw new Error("No refresh Token in cookies");
-    jwt.verify(
-      cookie.refreshToken,
-      process.env.JWT_SECREST,
-      async (err, decode) => {
-        if (err) throw new Error("Invalid refresh token");
-        const respone = await User.findById({
-          _id: decode._id,
-          refreshToken: cookie.refreshToken,
-        });
-        return res
-          .status(200)
-          .send({
-            success: respone ? true : false,
-            newAccessToken: respone
-              ? generateAccessToken(respone._id, respone.role)
-              : "Refresh token not matched",
-          });
-      }
+      return res.status(401).json("no refresh token in cookie");
+    const rs = jwt.verify(cookie.refreshToken, process.env.JWT_REFRESH_KEY);
+    const response = await User.findOne({
+      _id: rs._id,
+      refreshToken: cookie.refreshToken,
+    });
+    const newAccessToken = await generateAccessToken(
+      response._id,
+      response.roles
     );
+    return res
+      .status(200)
+      .json({ success: true, newAccessToken: newAccessToken });
   } catch (error) {
     return res
       .status(400)
       .send({ success: false, message: "Internal server error" });
   }
 };
+//LOGOUT USER
+const logoutUser = async (req, res) => {
+  try {
+    const cookie = req.cookies;
+    if (!cookie || !cookie.refreshToken)
+      throw new Error("No refresh token in cookies");
+    //xóa refreshtoken ở db
+    await User.findOneAndUpdate(
+      { refreshToken: cookie.refreshToken },
+      { refreshToken: "" },
+      { new: true }
+    );
+    //xóa refreshtoken ở cookie trình duyệt
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: true,
+      path: "/",
+      sameSite: "strict",
+    });
+    return res.status(200).json({ success: true, massage: "logout success" });
+  } catch (error) {
+    return res
+      .status(400)
+      .send({ success: false, message: "Internal server error" });
+  }
+};
+const updateUserAddress = async (req, res) => {
+  try {
+    const { _id } = req.user;
+    if (!req.body.address) throw new Error("Missing input");
+    const response = await User.findByIdAndUpdate(
+      _id,
+      { $push: { address: req.body.address } },
+      { new: true }
+    );
+    if (!response)
+      return res
+        .status(401)
+        .json({ success: false, message: "some thing went wrong" });
+    return res.status(200).json({ success: true, data: response });
+  } catch (error) {
+    return res
+      .status(400)
+      .send({ success: false, message: "Internal server error" });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
-  updatePasswordUser,
+  logoutUser,
   getcurrent,
-  refreshAccessToken,
+  requestRefreshAccessToken,
+  updateUserAddress,
 };

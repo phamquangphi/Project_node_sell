@@ -7,18 +7,16 @@ const { verifyAccessToken } = require("../middleware/verifyToken");
 const {
   registerUser,
   loginUser,
-  updatePasswordUser,
+  logoutUser,
   getcurrent,
-  refreshAccessToken,
+  requestRefreshAccessToken,
+  updateUserAddress,
 } = require("../controllers/user.controller");
-
 router.post("/register", registerUser);
 router.post("/login", loginUser);
-// router.get("/test", auth, function (req, res) {
-//   res.status(200).send({ success: true, massage: "Authenticated" });
-// });
-router.post("/update_password", updatePasswordUser);
+router.get("/logout", logoutUser);
 router.get("/current", verifyAccessToken, getcurrent);
-router.post("/refreshtoken", refreshAccessToken);
+router.post("/refreshtoken", requestRefreshAccessToken);
+router.put("/updateAddress", verifyAccessToken, updateUserAddress);
 
 module.exports = router;
